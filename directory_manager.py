@@ -3,7 +3,9 @@ import os
 import math
 import random
 import numpy as np
+import cv2 as cv
 from collections import Counter
+from keras import utils
 
 # Import dense script
 from dense_optical_flow import dense_sequence
@@ -137,6 +139,42 @@ def __unison_shuffled_copies(list_1, list_2):
     # Return shuffled lists
     return list_1[p], list_2[p]
 
+# Transform path list into image matrix array
+def path_to_image(image_path_list):
+
+    # Define output list and image dimensions
+    image_list = []
+    image_size = (224, 224)
+
+    # Iterate paths and transform into images of the right size
+    for image_path in image_path_list:
+        image = cv.imread(image_path, cv.IMREAD_COLOR)
+        image = cv.resize(image, image_size)
+        image_list.append(image[None, :])
+
+    return image_list
+
+# Transform list of string outputs into categorical output. Ie.: ['equality','penalty','superiority','transition'] -> [[1 0 0 0][0 1 0 0][0 0 1 0][0 0 0 1]]
+def transform_labels_to_number(label_list):
+
+    # Create list of numbers
+    number_list = []
+
+    # Iterate labels
+    for label in label_list:
+        
+        if label == 'equality':
+            number_list.append(0)
+        elif label == 'penalty':
+            number_list.append(1)
+        elif label == 'superiority':
+            number_list.append(2)
+        else:
+            number_list.append(3)
+
+    # Transform and return categorical list
+    return utils.to_categorical(number_list, num_classes=4)
+
 # Get batch of training data for one iteration
 def get_training_data():
 
@@ -162,5 +200,5 @@ def get_training_data():
     training_file.seek(0)
     training_file.close()
     
-    # Return shuffled copies of training batches
-    return __unison_shuffled_copies(x_batch_train, y_batch_train)
+    # Return copies of training batches
+    return path_to_image(x_batch_train), transform_labels_to_number(y_batch_train)

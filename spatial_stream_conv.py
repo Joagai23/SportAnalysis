@@ -26,9 +26,10 @@ def create_spatial_model(input_shape, num_classes, dropout_value):
     # Conv 5 Block
     conv5 = layers.Conv2D(512, (3, 3), strides=1, activation='relu')(conv4)
     pool5 = layers.MaxPool2D((3, 3), strides=(2, 2))(conv5)
+    flatten = layers.Flatten()(pool5)
 
     # Full 6 Block
-    dense6 = layers.Dense(4096, activation='relu')(pool5)
+    dense6 = layers.Dense(4096, activation='relu')(flatten)
     dropout6 = layers.Dropout(dropout_value)(dense6)
 
     # Full 7 Block

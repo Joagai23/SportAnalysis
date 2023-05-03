@@ -1,7 +1,7 @@
 # Import libraries
 import tensorflow as tf
-import numpy as np
-from keras import optimizers, losses
+import time
+from keras import optimizers, losses, metrics
 
 # Import functions
 from spatial_stream_conv import create_spatial_model
@@ -18,7 +18,10 @@ learning_rates = [1e-2, 1e-3, 1e-4]
 spatial_model =  create_spatial_model(image_size + (3,), num_classes=4, dropout_value=dropout_value)
 
 # Instantiate loss function
-loss_function = losses.CategoricalCrossentropy(from_logits=True)
+loss_function = losses.CategoricalCrossentropy()
+
+# Instantiate metrics
+training_metrics = metrics.CategoricalAccuracy()
 
 # Zip epoch and learning rate pair and iterate
 for epoch, learn_rate in zip(epochs, learning_rates):
@@ -32,26 +35,38 @@ for epoch, learn_rate in zip(epochs, learning_rates):
         % (epoch, learn_rate)
     )
 
+    # Get epoch starting time
+    start_time = time.time()
+
     # Iterate batches
     for step in range(epoch):
 
         # Obtain training inputs and outputs
         x_batch_train, y_batch_train = get_training_data()
 
-        # Record operations with Gradient Tape
-        with tf.GradientTape() as tape:
+        # Feed inputs to model
+        for x, y in zip(x_batch_train, y_batch_train):
 
-            # Forward pass
-            logits = spatial_model(x_batch_train, training = True)
+            # Record operations with Gradient Tape
+            with tf.GradientTape() as tape:
 
-            # Compute loss
-            loss_value = loss_function(y_batch_train, logits)
+                # Forward pass
+                prediction = spatial_model(x, training = True)
 
-        # Retrieve gradients of trainable variables
-        gradients = tape.gradient(loss_value, spatial_model.trainable_weights)
+                # Obtain tensor value from shape=(1, 4) to shape(4,)
+                prediction = prediction[0]
 
-        # Run gradient descent step
-        optimizer.apply_gradients(zip(gradients, spatial_model.trainable_weights))
+                # Compute loss value
+                loss_value = loss_function(y, prediction)
+
+            # Retrieve gradients of trainable variables
+            gradients = tape.gradient(loss_value, spatial_model.trainable_weights)
+
+            # Run gradient descent step
+            optimizer.apply_gradients(zip(gradients, spatial_model.trainable_weights))
+
+            # Update training metric
+            training_metrics.update_state(y, prediction)
 
         # Log every 500 iterations
         if step % 500 == 0:
@@ -62,3 +77,9 @@ for epoch, learn_rate in zip(epochs, learning_rates):
 
             # Save model
             spatial_model.save("./model_save/spatial_model_%d_%d" % (epoch, step))
+
+    # Reset training metrics at the end of each epoch
+    training_metrics.reset_states()
+
+    # Show training time for every epoch
+    print("Time taken: %.2fs" % (time.time() - start_time))
