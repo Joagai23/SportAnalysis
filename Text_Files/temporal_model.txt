@@ -1,0 +1,1 @@
+Start of 3000 iterations with learning rate 0.0100

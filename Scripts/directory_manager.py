@@ -128,6 +128,29 @@ def __get_random_frame_and_label(directory, frame_dir):
     # Return new file path
     return str(frame_dir + directory + "/" + frame), str(directory).split("/")[1]
 
+# Get a random dense sequence from a video directory
+def __get_random_dense_frame_and_label(directory, frame_dir, lenght_sequence = 3):
+
+    # Fix string termination
+    directory = str(directory).replace("\n", "")
+    
+    # Join directory paths and get a random frame from it
+    pathList = os.listdir(frame_dir + directory)
+
+    # Get frame that has a sequence (not end of video)
+    frame = random.choice(pathList[:-lenght_sequence])
+
+    # Get frame position in order to get sequence
+    position = pathList.index(frame)
+
+    # Add consecutive frames to list of names
+    frame_list = [str(frame_dir + directory + "/" + frame)]
+    for i in range(1, lenght_sequence):
+        frame_list.append(str(frame_dir + directory + "/" + pathList[position + i]))
+
+    # Return new list file path
+    return frame_list, str(directory).split("/")[1]
+
 # Shuffle two lists of the same lenght
 def __unison_shuffled_copies(list_1, list_2):
 
@@ -155,6 +178,27 @@ def path_to_image(image_path_list):
 
     return image_list
 
+# Transform path list into dense matrix array
+def dense_path_to_image(image_path_matrix):
+
+    # Define output list and image dimensions
+    image_matrix = []
+    image_size = (224, 224)
+
+    # Iterate paths and transform into images of the right size
+    for image_path_list in image_path_matrix:
+        image_list = []
+        for image_path in image_path_list:
+            image = cv.imread(image_path, cv.IMREAD_COLOR)
+            image = cv.resize(image, image_size)
+            if image_list == []:
+                image_list = image[None, :]
+            else:
+                image_list = np.concatenate((image_list, image[None, :]), axis=3)
+        image_matrix.append(image_list)
+
+    return image_matrix
+
 # Transform list of string outputs into categorical output. Ie.: ['equality','penalty','superiority','transition'] -> [[1 0 0 0][0 1 0 0][0 0 1 0][0 0 0 1]]
 def transform_labels_to_number(label_list):
 
@@ -177,13 +221,16 @@ def transform_labels_to_number(label_list):
     return utils.to_categorical(number_list, num_classes=4)
 
 # Get batch of training data for one iteration
-def get_training_data():
+def get_training_data(type_of_model = 1):
+
+    if type_of_model == 2:
+        return get_dense_training_data()
 
     # Define frame directory
-    frame_dir = "SportAnalysis/Frames"
+    frame_dir = "./Frames"
 
     # Open and read training file
-    training_file = open("SportAnalysis/Text_Files/training_directory_list.txt", "r")
+    training_file = open("./Text_Files/training_directory_list.txt", "r")
 
     # Define train data
     x_batch_train = []
@@ -203,6 +250,35 @@ def get_training_data():
     
     # Return copies of training batches
     return path_to_image(x_batch_train), transform_labels_to_number(y_batch_train)
+
+# Get batch of dense training data for one iteration
+def get_dense_training_data():
+
+    # Define dense directory
+    # Substitute . for SportAnalysis on server
+    dense_directory = "./Dense"
+
+    # Open and read training file
+    training_file = open("./Text_Files/training_directory_list.txt", "r")
+
+    # Define train data
+    x_batch_train = []
+    y_batch_train = []
+
+    # Iterate lines in training file
+    for line in training_file:
+
+        # For every line obtain random frame with label
+        frame_list, label = __get_random_dense_frame_and_label(line, dense_directory)
+        x_batch_train.append(frame_list)
+        y_batch_train.append(label)
+
+    # Return file pointer to starting position and close it
+    training_file.seek(0)
+    training_file.close()
+
+    # Return copies of training batches
+    return dense_path_to_image(x_batch_train), transform_labels_to_number(y_batch_train)
 
 # Rename directory from /goal (19) ---> to /goal_19
 def rename_directory(father_directory):
