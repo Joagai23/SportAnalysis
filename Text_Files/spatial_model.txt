@@ -1,2 +1,1 @@
-Start of 50000 iterations with learning rate 0.0100
-Training loss (for one batch) at step 0: 16.1181
+Start of 3000 iterations with learning rate 0.0100

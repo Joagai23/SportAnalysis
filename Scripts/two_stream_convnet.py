@@ -2,6 +2,7 @@
 import tensorflow as tf
 import time
 from keras import optimizers, losses, metrics
+from datetime import datetime
 
 # Import functions
 from spatial_stream_conv import create_spatial_model
@@ -12,7 +13,7 @@ from log_writer import write_log
 image_size = (224, 224)
 dropout_value = 0.5
 num_outputs = 4
-epochs = [50000, 20000, 10000]
+epochs = [3000, 2000, 1000]
 learning_rates = [1e-2, 1e-3, 1e-4]
 
 # Create spatial model
@@ -69,15 +70,20 @@ for epoch, learn_rate in zip(epochs, learning_rates):
             # Update training metric
             training_metrics.update_state(y, prediction)
 
-        # Log every 500 iterations
-        if step % 500 == 0 and step != 0:
+        # Log every 100 iterations
+        if step % 100 == 0 and step != 0:
+            write_log(str(datetime.now()), "SportAnalysis/Text_Files/spatial_model.txt")
             write_log(
-                "Training loss (for one batch) at step %d: %.4f"
-                % (step, float(loss_value)), "SportAnalysis/Text_Files/spatial_model.txt"
+                "Training loss at step %d: %f"
+                % (step, float(loss_value.numpy())), "SportAnalysis/Text_Files/spatial_model.txt"
+            )
+            write_log(
+                "Training categorical accuracy at step %d: %f"
+                % (step, float(training_metrics.result())), "SportAnalysis/Text_Files/spatial_model.txt"
             )
 
-            # Save model
-            spatial_model.save("SportAnalysis/Models/spatial_model_%d_%d" % (epoch, step))
+    # Save model
+    spatial_model.save("SportAnalysis/Models/spatial_model_%d_%d" % (epoch, step))       
 
     # Reset training metrics at the end of each epoch
     training_metrics.reset_states()
