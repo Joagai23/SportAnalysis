@@ -360,7 +360,7 @@ def get_test_frames_dense(len_sequence = 15):
     for line in training_file:
 
         # Find sequence of frames
-        file_sequence = find_file_sequence_by_dense(dense_dir, line, dense_len_sequence)
+        file_sequence = find_file_sequence_by_dense(dense_directory, line, dense_len_sequence)
         
         # Get label for current video path
         label = str(line).split("/")[1]
