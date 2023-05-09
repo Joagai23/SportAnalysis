@@ -161,5 +161,6 @@ cython_debug/
 
 # Ignore Dataset files
 Frames.zip
+Dense.zip
 Frames
 Dense

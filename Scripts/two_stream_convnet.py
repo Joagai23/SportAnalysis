@@ -7,7 +7,7 @@ from datetime import datetime
 # Import functions
 from spatial_stream_conv import create_spatial_model
 from temporal_stream_conv import create_temporal_model
-from directory_manager import get_training_data
+from directory_image_manager import get_training_data, temporal_model_log, spatial_model_log, temporal_model_directory, spatial_model_directory
 from log_writer import write_log
 
 # Define model variables
@@ -100,7 +100,7 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
         write_log("Time taken: %.2fs" % (time.time() - start_time), log_file)
 
 # Train spatial model
-#train_model(spatial_model, "SportAnalysis/Text_Files/spatial_model.txt", "SportAnalysis/Models/spatial_model", type_of_model=1)
+#train_model(spatial_model, spatial_model_log, spatial_model_directory, type_of_model=1)
 
 # Train temporal model
-train_model(temporal_model, "./Text_Files/temporal_model.txt", "./Models/temporal_model", type_of_model=2)
+train_model(temporal_model, temporal_model_log, temporal_model_directory, type_of_model=2)
