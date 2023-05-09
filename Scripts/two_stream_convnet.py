@@ -12,10 +12,10 @@ from log_writer import write_log
 
 # Define model variables
 image_size = (224, 224)
-dropout_value = 0.5
+dropout_value = 0.3
 num_outputs = 4
 epochs = [3000, 2000, 1000]
-learning_rates = [1e-2, 1e-3, 1e-4]
+learning_rates = [1e-3, 1e-4, 1e-5]
 lenght_sequence = 3
 
 # Create spatial model
