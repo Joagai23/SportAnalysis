@@ -13,18 +13,19 @@ from dense_optical_flow import dense_sequence
 
 # Define directories
 video_directory = "../Videos"
-frame_directory = "SportAnalysis/Frames"
-dense_directory = "SportAnalysis/Dense"
+frame_directory = "./Frames"
+dense_directory = "./Dense"
 
 # Define files
-training_file_directory = "SportAnalysis/Text_Files/training_directory_list.txt"
-testing_file_directory = "SportAnalysis/Text_Files/testing_directory_list.txt"
-temporal_model_log = "SportAnalysis/Text_Files/temporal_model.txt"
-spatial_model_log = "SportAnalysis/Text_Files/spatial_model.txt"
+training_file_directory = "./Text_Files/training_directory_list.txt"
+testing_file_directory = "./Text_Files/testing_directory_list.txt"
+temporal_model_log = "./Text_Files/temporal_model.txt"
+spatial_model_log = "./Text_Files/spatial_model.txt"
+two_stream_conv_model_log = "./Text_Files/two_stream_conv_model.txt"
 
 # Define model directories
-temporal_model_directory = "SportAnalysis/Models/temporal_model"
-spatial_model_directory = "SportAnalysis/Models/spatial_model"
+temporal_model_directory = "./Models/temporal_model"
+spatial_model_directory = "./Models/spatial_model"
 
 # For every video create a dense optical flow
 def dense_flow():
@@ -340,7 +341,7 @@ def find_file_sequence_by_dense(dense_dir, video_path, len_sequence = 15):
     return frame_list
 
 # Get a sequence of mirror frames and dense
-def get_test_frames_dense(len_sequence = 15):
+def get_test_frames_by_dense(len_sequence = 15):
 
     # Open and read training file
     training_file = open(training_file_directory, "r")
@@ -376,6 +377,8 @@ def get_test_frames_dense(len_sequence = 15):
         # Get temporal input
         temporal_frames = [dense_directory + file for file in file_sequence]
         temporal_x_batch_test.append(test_dense_path_to_image(temporal_frames, len_dense_aggroupation, len_sequence))
+
+    return spatial_x_batch_test, temporal_x_batch_test, y_batch_test
 
 # Rename directory from /goal (19) ---> to /goal_19
 def rename_directory(father_directory):
