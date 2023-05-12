@@ -22,6 +22,10 @@ testing_file_directory = "./Text_Files/testing_directory_list.txt"
 temporal_model_log = "./Text_Files/temporal_model.txt"
 spatial_model_log = "./Text_Files/spatial_model.txt"
 two_stream_conv_model_log = "./Text_Files/two_stream_conv_model.txt"
+temporal_model_output = "./Text_Files/temporal_model_output.txt" 
+spatial_model_output = "./Text_Files/spatial_model_output.txt"
+two_stream_conv_model_output = "./Text_Files/two_stream_conv_model_output.txt"
+two_stream_conv_model_label = "./Text_Files/two_stream_conv_model_labels.txt"
 
 # Define model directories
 temporal_model_directory = "./Models/temporal_model"
@@ -344,7 +348,7 @@ def find_file_sequence_by_dense(dense_dir, video_path, len_sequence = 15):
 def get_test_frames_by_dense(len_sequence = 15):
 
     # Open and read training file
-    training_file = open(training_file_directory, "r")
+    testing_file = open(testing_file_directory, "r")
 
     # Define train data for both spatial and temporal flows
     spatial_x_batch_test = []
@@ -358,7 +362,7 @@ def get_test_frames_by_dense(len_sequence = 15):
     len_dense_aggroupation = 3
 
     # Iterate lines in training file
-    for line in training_file:
+    for line in testing_file:
 
         # Find sequence of frames
         file_sequence = find_file_sequence_by_dense(dense_directory, line, dense_len_sequence)

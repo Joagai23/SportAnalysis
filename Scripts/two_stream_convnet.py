@@ -7,7 +7,7 @@ from datetime import datetime
 # Import functions
 from spatial_stream_conv import create_spatial_model
 from temporal_stream_conv import create_temporal_model
-from directory_image_manager import get_training_data, get_test_frames_by_dense, temporal_model_log, spatial_model_log, temporal_model_directory, spatial_model_directory, two_stream_conv_model_log
+from directory_image_manager import get_training_data, get_test_frames_by_dense, temporal_model_log, spatial_model_log, temporal_model_directory, spatial_model_directory, two_stream_conv_model_log, temporal_model_output, spatial_model_output, two_stream_conv_model_label, two_stream_conv_model_output
 from log_writer import write_log
 
 # Define model variables
@@ -99,21 +99,40 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
         # Show training time for every epoch
         write_log("Time taken: %.2fs" % (time.time() - start_time), log_file)
 
+# Obtain mean tensor from a list of tensor values
+def get_mean_output(prediction_list):
+
+    # Get number of entries in list
+    num_entries = len(prediction_list)
+
+    # Initialize tensor to sum all entries
+    sum_value = tf.constant([0.0, 0.0, 0.0, 0.0])
+    
+    # Sum al elements in list
+    for tensor in prediction_list:
+        sum_value += tensor
+
+    # Average sumatory results
+    sum_value /= num_entries
+
+    # Return list average
+    return sum_value
+
 # Test model
-def test_two_stream_net(log_file, spatial_model_directory, temporal_model_directory):
+def test_two_stream_net(log_file, spatial_model_directory, temporal_model_directory, spatial_output, temporal_output, two_stream_output, two_stream_label):
 
     # Set number of testing iterations
-    num_iterations = 10
+    num_iterations = 500
 
     # Set lenght of frames per sequence to test
     len_sequence = 15
 
     # Load models
-    #spatial_model = models.load_model(spatial_model_directory)
-    #temporal_model = models.load_model(temporal_model_directory)
+    spatial_model = models.load_model(spatial_model_directory, compile=False)
+    temporal_model = models.load_model(temporal_model_directory, compile=False)
 
     # Log starting time of testing process
-    write_log(str("Start of Two-Stream Convolutional Network training at ", str(datetime.now())), log_file)
+    write_log(message = "Start of Two-Stream Convolutional Network testing at %s" % (str(datetime.now())), file_name = log_file)
 
     # Iterate testing process
     for iteration in range(num_iterations):
@@ -138,26 +157,48 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
             write_log("Spatial batch is %d, temporal batch is %d, label batch is %d" % (len(spatial_x_batch_test), len(temporal_x_batch_test), len(y_batch_test)), log_file)
             return
         
-        print("Lenght of batches = ", len_batch)
-        
         for mini_batch in range(len_batch):
 
             # Set mini-batch list values (len = len_sequence = 15)
             spatial_x_mini_batch_test = spatial_x_batch_test[mini_batch]
-            spatial_x_mini_batch_test = spatial_x_batch_test[mini_batch]
+            temporal_x_mini_batch_test = temporal_x_batch_test[mini_batch]
             y_mini_batch_test = y_batch_test[mini_batch]
+
+            # Initialize model output list
+            spatial_output_list = []
+            temporal_output_list = []
 
             # Check the lenght of batches is the same
             # If not break iteration
             len_mini_batch = 0
-            if(len(spatial_x_mini_batch_test) == len(temporal_x_batch_test) == len(y_batch_test)):
+            if(len(spatial_x_mini_batch_test) == len(temporal_x_mini_batch_test)):
                 len_mini_batch = len(spatial_x_mini_batch_test)
             else:
-                write_log("Mini-Batch lenght error! at", str(datetime.now()), log_file)
-                write_log("Spatial mini-batch is %d, temporal mini-batch is %d, label mini-batch is %d" % (len(spatial_x_mini_batch_test), len(spatial_x_mini_batch_test), len(y_mini_batch_test)), log_file)
+                write_log(message = "Mini-Batch lenght error! at %s" % (str(datetime.now())), file_name = log_file)
+                write_log("Spatial mini-batch is %d, temporal mini-batch is %d, label mini-batch is %d" % (len(spatial_x_mini_batch_test), len(temporal_x_mini_batch_test), len(y_mini_batch_test)), log_file)
                 return
             
-            print("Lenght of mini-batches = ", len_mini_batch)
+            # Iterate inputs and feed them to the models
+            for input in range(len_mini_batch):
+
+                # Append output values to mini_batch list
+                spatial_output_list.append(spatial_model(spatial_x_mini_batch_test[input], training = False)[0])
+                temporal_output_list.append(temporal_model(temporal_x_mini_batch_test[input], training = False)[0])
+
+            # Average output list values
+            spatial_mean_prediction = get_mean_output(spatial_output_list)
+            temporal_mean_prediction = get_mean_output(temporal_output_list)
+
+            # Log output predictions in corresponding files
+            write_log(message = str(spatial_mean_prediction), file_name = spatial_output)
+            write_log(message = str(temporal_mean_prediction), file_name = temporal_output)
+            write_log(message = str(y_mini_batch_test), file_name = two_stream_label)
+
+            # Fuse output predictions (Regular average)
+            two_stream_prediction = get_mean_output([spatial_mean_prediction, temporal_mean_prediction])
+
+            # Log Two-Stream ConvNet output
+            write_log(message = str(two_stream_prediction), file_name = two_stream_output)
 
 # Train spatial model
 #train_model(spatial_model, spatial_model_log, spatial_model_directory, type_of_model=1)
@@ -166,4 +207,4 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
 #train_model(temporal_model, temporal_model_log, temporal_model_directory, type_of_model=2)
 
 # Test two-stream convolutional model
-test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory)
+test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory, spatial_model_output, temporal_model_output, two_stream_conv_model_output, two_stream_conv_model_label)

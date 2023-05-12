@@ -6,6 +6,7 @@ def write_log(message, file_name):
 
     # Write log
     file.write(message)
+    
     # Write line jump
     file.write("\n")
 
