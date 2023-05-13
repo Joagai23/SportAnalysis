@@ -7,7 +7,7 @@ from datetime import datetime
 # Import functions
 from spatial_stream_conv import create_spatial_model
 from temporal_stream_conv import create_temporal_model
-from directory_image_manager import get_training_data, get_test_frames_by_dense, temporal_model_log, spatial_model_log, temporal_model_directory, spatial_model_directory, two_stream_conv_model_log, temporal_model_output, spatial_model_output, two_stream_conv_model_label, two_stream_conv_model_output
+from directory_image_manager import get_training_data, get_test_frames_by_dense, temporal_model_log, spatial_model_log, temporal_model_directory, spatial_model_directory, two_stream_conv_model_log, temporal_model_output, spatial_model_output, two_stream_conv_model_output
 from log_writer import write_log
 
 # Define model variables
@@ -119,7 +119,7 @@ def get_mean_output(prediction_list):
     return sum_value
 
 # Test model
-def test_two_stream_net(log_file, spatial_model_directory, temporal_model_directory, spatial_output, temporal_output, two_stream_output, two_stream_label):
+def test_two_stream_net(log_file, spatial_model_directory, temporal_model_directory, spatial_output, temporal_output, two_stream_output):
 
     # Set number of testing iterations
     num_iterations = 500
@@ -157,6 +157,11 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
             write_log("Spatial batch is %d, temporal batch is %d, label batch is %d" % (len(spatial_x_batch_test), len(temporal_x_batch_test), len(y_batch_test)), log_file)
             return
         
+        # Define Categorical Accuracy Metrics
+        conv_net_cat_acc = metrics.CategoricalAccuracy()
+        spatial_net_cat_acc = metrics.CategoricalAccuracy()
+        temporal_net_cat_acc = metrics.CategoricalAccuracy()
+        
         for mini_batch in range(len_batch):
 
             # Set mini-batch list values (len = len_sequence = 15)
@@ -189,16 +194,23 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
             spatial_mean_prediction = get_mean_output(spatial_output_list)
             temporal_mean_prediction = get_mean_output(temporal_output_list)
 
-            # Log output predictions in corresponding files
-            write_log(message = str(spatial_mean_prediction), file_name = spatial_output)
-            write_log(message = str(temporal_mean_prediction), file_name = temporal_output)
-            write_log(message = str(y_mini_batch_test), file_name = two_stream_label)
-
             # Fuse output predictions (Regular average)
             two_stream_prediction = get_mean_output([spatial_mean_prediction, temporal_mean_prediction])
 
-            # Log Two-Stream ConvNet output
-            write_log(message = str(two_stream_prediction), file_name = two_stream_output)
+            # Calculate metrics
+            conv_net_cat_acc.update_state(two_stream_prediction, y_mini_batch_test)
+            spatial_net_cat_acc.update_state(spatial_mean_prediction, y_mini_batch_test)
+            temporal_net_cat_acc.update_state(temporal_mean_prediction, y_mini_batch_test)
+
+        # Log output predictions in corresponding files
+        write_log(message = str(spatial_net_cat_acc.result().numpy()), file_name = spatial_output)
+        write_log(message = str(temporal_net_cat_acc.result().numpy()), file_name = temporal_output)
+        write_log(message = str(conv_net_cat_acc.result().numpy()), file_name = two_stream_output)
+
+        # Reset states in between iterations: They are averaged after all the testing
+        conv_net_cat_acc.reset_state()
+        spatial_net_cat_acc.reset_state()
+        temporal_net_cat_acc.reset_state()
 
 # Train spatial model
 #train_model(spatial_model, spatial_model_log, spatial_model_directory, type_of_model=1)
@@ -207,4 +219,4 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
 #train_model(temporal_model, temporal_model_log, temporal_model_directory, type_of_model=2)
 
 # Test two-stream convolutional model
-test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory, spatial_model_output, temporal_model_output, two_stream_conv_model_output, two_stream_conv_model_label)
+test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory, spatial_model_output, temporal_model_output, two_stream_conv_model_output)
