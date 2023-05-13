@@ -219,4 +219,30 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
 #train_model(temporal_model, temporal_model_log, temporal_model_directory, type_of_model=2)
 
 # Test two-stream convolutional model
-test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory, spatial_model_output, temporal_model_output, two_stream_conv_model_output)
+#test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory, spatial_model_output, temporal_model_output, two_stream_conv_model_output)
+
+# For a file with accuracy tests for X number of iterations, calculate the mean and append it to document
+def get_mean_accuracy(result_file_name):
+
+    # Create array to store numeric data
+    result_sum = 0.0
+    index = 0
+
+    # Open file in append mode
+    with open(result_file_name) as result_file:
+
+        # Iterate file
+        for line in result_file:
+            
+            # Update index value
+            index += 1
+
+            # Remove line jump
+            line = line.replace('\n', '')
+
+            # Cast line to number and append to result array
+            value = float(line)
+            result_sum += value
+
+    # Get mean result
+    return (result_sum / index)
