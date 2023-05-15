@@ -3,28 +3,15 @@ import tensorflow as tf
 import time
 from keras import optimizers, losses, metrics, models
 from datetime import datetime
+from .helper import get_training_data, get_test_frames_by_dense, get_mean_output
+from .log_writer import write_log
 
-# Import functions
-from spatial_stream_conv import create_spatial_model
-from temporal_stream_conv import create_temporal_model
-from directory_image_manager import get_training_data, get_test_frames_by_dense, temporal_model_log, spatial_model_log, temporal_model_directory, spatial_model_directory, two_stream_conv_model_log, temporal_model_output, spatial_model_output, two_stream_conv_model_output
-from log_writer import write_log
-
-# Define model variables
-image_size = (224, 224)
-dropout_value = 0.3
-num_outputs = 4
-epochs = [3000, 2000, 1000]
+# Define training variables
+#epochs = [3000, 2000, 1000]
+epochs = [1500, 1000, 500]
 learning_rates = [1e-3, 1e-4, 1e-5]
-lenght_sequence = 3
 
-# Create spatial model
-spatial_model = create_spatial_model(image_size + (3,), num_classes=4, dropout_value=dropout_value)
-
-# Create temporal model
-temporal_model =  create_temporal_model(image_size + (3 * lenght_sequence,), num_classes=4, dropout_value=dropout_value)
-
-# Train model function. Inputs = model, log_file, type_of_model (1 = spatial, 2 = temporal)
+# Train model function. Inputs = model, log_file, type_of_model (1 = spatial, 2 = temporal, 3 = LCRN)
 def train_model(model, log_file, model_directory, type_of_model = 1):
 
     # Instantiate loss function
@@ -78,6 +65,10 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
                 # Update training metric
                 training_metrics.update_state(y, prediction)
 
+            print(str(datetime.now()))
+            print("Training loss at step %d: %f" % (step, float(loss_value.numpy())))
+            print("Training categorical accuracy at step %d: %f" % (step, float(training_metrics.result())))
+
             # Log every 100 iterations
             if step % 100 == 0 and step != 0:
                 write_log(str(datetime.now()), log_file)
@@ -98,25 +89,6 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
 
         # Show training time for every epoch
         write_log("Time taken: %.2fs" % (time.time() - start_time), log_file)
-
-# Obtain mean tensor from a list of tensor values
-def get_mean_output(prediction_list):
-
-    # Get number of entries in list
-    num_entries = len(prediction_list)
-
-    # Initialize tensor to sum all entries
-    sum_value = tf.constant([0.0, 0.0, 0.0, 0.0])
-    
-    # Sum al elements in list
-    for tensor in prediction_list:
-        sum_value += tensor
-
-    # Average sumatory results
-    sum_value /= num_entries
-
-    # Return list average
-    return sum_value
 
 # Test model
 def test_two_stream_net(log_file, spatial_model_directory, temporal_model_directory, spatial_output, temporal_output, two_stream_output):
@@ -211,38 +183,3 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
         conv_net_cat_acc.reset_state()
         spatial_net_cat_acc.reset_state()
         temporal_net_cat_acc.reset_state()
-
-# Train spatial model
-#train_model(spatial_model, spatial_model_log, spatial_model_directory, type_of_model=1)
-
-# Train temporal model
-#train_model(temporal_model, temporal_model_log, temporal_model_directory, type_of_model=2)
-
-# Test two-stream convolutional model
-#test_two_stream_net(two_stream_conv_model_log, spatial_model_directory, temporal_model_directory, spatial_model_output, temporal_model_output, two_stream_conv_model_output)
-
-# For a file with accuracy tests for X number of iterations, calculate the mean and append it to document
-def get_mean_accuracy(result_file_name):
-
-    # Create array to store numeric data
-    result_sum = 0.0
-    index = 0
-
-    # Open file in append mode
-    with open(result_file_name) as result_file:
-
-        # Iterate file
-        for line in result_file:
-            
-            # Update index value
-            index += 1
-
-            # Remove line jump
-            line = line.replace('\n', '')
-
-            # Cast line to number and append to result array
-            value = float(line)
-            result_sum += value
-
-    # Get mean result
-    return (result_sum / index)

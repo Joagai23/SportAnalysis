@@ -5,11 +5,12 @@ import random
 import numpy as np
 import cv2 as cv
 import re
+import tensorflow as tf
 from collections import Counter
 from keras import utils
 
 # Import dense script
-from dense_optical_flow import dense_sequence
+from .dense_optical_flow import dense_sequence
 
 # Define directories
 video_directory = "../Videos"
@@ -22,13 +23,16 @@ testing_file_directory = "./Text_Files/testing_directory_list.txt"
 temporal_model_log = "./Text_Files/two-stream_conv_net/temporal_model/temporal_model.txt"
 spatial_model_log = "./Text_Files/two-stream_conv_net/spatial_model/spatial_model.txt"
 two_stream_conv_model_log = "./Text_Files/two-stream_conv_net/two_stream_conv_model.txt"
+lcrn_model_log = "./Text_Files/lcrn/lcrn.txt"
 temporal_model_output = "./Text_Files/two-stream_conv_net/temporal_model/temporal_model_output.txt" 
 spatial_model_output = "./Text_Files/two-stream_conv_net/spatial_model/spatial_model_output.txt"
 two_stream_conv_model_output = "./Text_Files/two-stream_conv_net/two_stream_conv_model_output.txt"
+lcrn_model_output = "./Text_Files/lcrn/lcrn_output.txt"
 
 # Define model directories
 temporal_model_directory = "./Models/temporal_model"
 spatial_model_directory = "./Models/spatial_model"
+lcrn_model_directory = "./Models/spatial_model"
 
 # For every video create a dense optical flow
 def dense_flow():
@@ -271,8 +275,12 @@ def string_label_to_binary(label):
 # Get batch of training data for one iteration
 def get_training_data(type_of_model = 1):
 
+    # Temporal model
     if type_of_model == 2:
         return get_dense_training_data()
+    # LCRN model
+    elif type_of_model == 3:
+        return get_training_frames_sequence()
 
     # Open and read training file
     training_file = open(training_file_directory, "r")
@@ -346,10 +354,10 @@ def find_file_sequence_by_dense(dense_dir, video_path, len_sequence = 15):
 # Get a sequence of mirror frames and dense
 def get_test_frames_by_dense(len_sequence = 15):
 
-    # Open and read training file
+    # Open and read testing file
     testing_file = open(testing_file_directory, "r")
 
-    # Define train data for both spatial and temporal flows
+    # Define test data for both spatial and temporal flows
     spatial_x_batch_test = []
     temporal_x_batch_test = []
     y_batch_test = []
@@ -383,6 +391,49 @@ def get_test_frames_by_dense(len_sequence = 15):
 
     return spatial_x_batch_test, temporal_x_batch_test, y_batch_test
 
+# Get a sequence of training frames
+def get_training_frames_sequence(len_sequence = 5):
+
+    # Open and read training file
+    training_file = open(training_file_directory, "r")
+    
+    # Define train data batches
+    x_batch = []
+    y_batch = []
+
+    # Iterate lines in training file
+    for line in training_file:
+
+        # Fix string termination
+        directory = str(line).replace("\n", "")
+
+        # Get list of frames from directory
+        pathList = os.listdir(frame_directory + directory)
+
+        # Get frame that has a sequence (not end of video)
+        frame = random.choice(pathList[:-len_sequence])
+        
+        # Get frame position inside list
+        position = pathList.index(frame)
+
+        # Add consecutive frames to list of names
+        frame_list = [frame_directory + str(directory + "/" + frame)]
+        for i in range(1, len_sequence):
+            frame_list.append(frame_directory + str(directory + "/" + pathList[position + i]))
+
+        # Get label for current video path
+        label = str(line).split("/")[1]
+
+        # Process label into one-hot and add it to label array
+        label = string_label_to_binary(label)
+        y_batch.append(label)
+
+        # Get input
+        input = dense_path_to_image([frame_list])[0]
+        x_batch.append(input[None, :])
+
+    return x_batch, y_batch
+
 # Rename directory from /goal (19) ---> to /goal_19
 def rename_directory(father_directory):
 
@@ -403,3 +454,48 @@ def rename_directory(father_directory):
 
         # Replace directory and pray
         os.rename(directory, new_directory)
+
+# Obtain mean tensor from a list of tensor values
+def get_mean_output(prediction_list):
+
+    # Get number of entries in list
+    num_entries = len(prediction_list)
+
+    # Initialize tensor to sum all entries
+    sum_value = tf.constant([0.0, 0.0, 0.0, 0.0])
+    
+    # Sum al elements in list
+    for tensor in prediction_list:
+        sum_value += tensor
+
+    # Average sumatory results
+    sum_value /= num_entries
+
+    # Return list average
+    return sum_value
+
+# For a file with accuracy tests for X number of iterations, calculate the mean and append it to document
+def get_mean_accuracy(result_file_name):
+
+    # Create array to store numeric data
+    result_sum = 0.0
+    index = 0
+
+    # Open file in append mode
+    with open(result_file_name) as result_file:
+
+        # Iterate file
+        for line in result_file:
+            
+            # Update index value
+            index += 1
+
+            # Remove line jump
+            line = line.replace('\n', '')
+
+            # Cast line to number and append to result array
+            value = float(line)
+            result_sum += value
+
+    # Get mean result
+    return (result_sum / index)
