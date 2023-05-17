@@ -20,19 +20,21 @@ dense_directory = "./Dense"
 # Define files
 training_file_directory = "./Text_Files/training_directory_list.txt"
 testing_file_directory = "./Text_Files/testing_directory_list.txt"
+
 temporal_model_log = "./Text_Files/two-stream_conv_net/temporal_model/temporal_model.txt"
 spatial_model_log = "./Text_Files/two-stream_conv_net/spatial_model/spatial_model.txt"
 two_stream_conv_model_log = "./Text_Files/two-stream_conv_net/two_stream_conv_model.txt"
-lcrn_model_log = "./Text_Files/lcrn/lcrn.txt"
+cnn_rnn_model_log = "./Text_Files/cnn_rnn/cnn_rnn.txt"
+
 temporal_model_output = "./Text_Files/two-stream_conv_net/temporal_model/temporal_model_output.txt" 
 spatial_model_output = "./Text_Files/two-stream_conv_net/spatial_model/spatial_model_output.txt"
 two_stream_conv_model_output = "./Text_Files/two-stream_conv_net/two_stream_conv_model_output.txt"
-lcrn_model_output = "./Text_Files/lcrn/lcrn_output.txt"
+cnn_rnn_model_output = "./Text_Files/cnn_rnn/cnn_rnn_output.txt"
 
 # Define model directories
 temporal_model_directory = "./Models/temporal_model"
 spatial_model_directory = "./Models/spatial_model"
-lcrn_model_directory = "./Models/spatial_model"
+cnn_rnn_model_directory = "./Models/cnn_rnn_model"
 
 # For every video create a dense optical flow
 def dense_flow():
@@ -199,7 +201,7 @@ def path_to_image(image_path_list):
     return image_list
 
 # Transform path list into dense matrix array
-def dense_path_to_image(image_path_matrix):
+def dense_path_to_image(image_path_matrix, addition_axis = 3):
 
     # Define output list and image dimensions
     image_matrix = []
@@ -214,7 +216,7 @@ def dense_path_to_image(image_path_matrix):
             if not len(image_list):
                 image_list = image[None, :]
             else:
-                image_list = np.concatenate((image_list, image[None, :]), axis=3)
+                image_list = np.concatenate((image_list, image[None, :]), axis=addition_axis)
         image_matrix.append(image_list)
 
     return image_matrix
@@ -273,14 +275,14 @@ def string_label_to_binary(label):
     return utils.to_categorical(number_value, num_classes=4)
 
 # Get batch of training data for one iteration
-def get_training_data(type_of_model = 1):
+def get_training_data(type_of_model = 1, len_sequence = 5):
 
     # Temporal model
     if type_of_model == 2:
         return get_dense_training_data()
     # LCRN model
     elif type_of_model == 3:
-        return get_training_frames_sequence()
+        return get_frames_sequence(len_sequence=len_sequence, training=True)
 
     # Open and read training file
     training_file = open(training_file_directory, "r")
@@ -392,17 +394,20 @@ def get_test_frames_by_dense(len_sequence = 15):
     return spatial_x_batch_test, temporal_x_batch_test, y_batch_test
 
 # Get a sequence of training frames
-def get_training_frames_sequence(len_sequence = 5):
+def get_frames_sequence(len_sequence = 5, training=True):
 
-    # Open and read training file
-    training_file = open(training_file_directory, "r")
+    # Open and read file
+    if training:
+        file = open(training_file_directory, "r")
+    else:
+        file = open(testing_file_directory, "r")
     
     # Define train data batches
     x_batch = []
     y_batch = []
 
     # Iterate lines in training file
-    for line in training_file:
+    for line in file:
 
         # Fix string termination
         directory = str(line).replace("\n", "")
@@ -429,8 +434,8 @@ def get_training_frames_sequence(len_sequence = 5):
         y_batch.append(label)
 
         # Get input
-        input = dense_path_to_image([frame_list])[0]
-        x_batch.append(input[None, :])
+        input = dense_path_to_image([frame_list], addition_axis=0)[0]
+        x_batch.append(input)
 
     return x_batch, y_batch
 
@@ -499,3 +504,7 @@ def get_mean_accuracy(result_file_name):
 
     # Get mean result
     return (result_sum / index)
+
+# Create batch mask for a given tensor
+def create_batch_mask(sequence_lenght):
+    return np.ones(shape=(1, sequence_lenght,), dtype="bool")

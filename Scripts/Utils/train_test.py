@@ -1,24 +1,43 @@
 # Import libraries
 import tensorflow as tf
 import time
-from keras import optimizers, losses, metrics, models
+from keras import optimizers, losses, metrics, models, applications, Input, Model
+from keras.applications.inception_v3 import preprocess_input
 from datetime import datetime
-from .helper import get_training_data, get_test_frames_by_dense, get_mean_output
+from .helper import get_training_data, get_test_frames_by_dense, get_mean_output, get_frames_sequence, create_batch_mask
 from .log_writer import write_log
 
 # Define training variables
-#epochs = [3000, 2000, 1000]
-epochs = [1500, 1000, 500]
+epochs = [3000, 2000, 1000]
 learning_rates = [1e-3, 1e-4, 1e-5]
 
-# Train model function. Inputs = model, log_file, type_of_model (1 = spatial, 2 = temporal, 3 = LCRN)
-def train_model(model, log_file, model_directory, type_of_model = 1):
+# Feature Extractor
+def build_feature_extractor(image_size = 224):
+    feature_extractor = applications.InceptionV3(
+        weights="imagenet",
+        include_top=False,
+        pooling="avg",
+        input_shape=(image_size, image_size, 3),
+    )
+
+    inputs = Input((image_size, image_size, 3))
+    preprocessed = preprocess_input(inputs)
+
+    outputs = feature_extractor(preprocessed)
+    return Model(inputs, outputs, name="feature_extractor")
+
+# Train model function. Inputs = model, log_file, type_of_model (1 = spatial, 2 = temporal, 3 = sequence)
+def train_model(model, log_file, model_directory, type_of_model = 1, num_features = 2048, len_sequence = 5):
 
     # Instantiate loss function
     loss_function = losses.CategoricalCrossentropy()
 
     # Instantiate metrics
     training_metrics = metrics.CategoricalAccuracy()
+
+    # Initialize CNN-RNN function
+    if(type_of_model == 3):
+        feature_extractor = build_feature_extractor()
 
     # Zip epoch and learning rate pair and iterate
     for epoch, learn_rate in zip(epochs, learning_rates):
@@ -39,16 +58,22 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
         for step in range(epoch):
 
             # Obtain training inputs and outputs
-            x_batch_train, y_batch_train = get_training_data(type_of_model)
+            x_batch_train, y_batch_train = get_training_data(type_of_model, len_sequence)
 
             # Feed inputs to model
             for x, y in zip(x_batch_train, y_batch_train):
-                
+
                 # Record operations with Gradient Tape
                 with tf.GradientTape() as tape:
                     
-                    # Forward pass
-                    prediction = model(x, training = True)
+                    if type_of_model == 3:
+                        x = feature_extractor(x)
+                        x = x[None, :]
+                        mask = create_batch_mask(len_sequence)
+                        prediction = model((x, mask), training = True)
+                    else:
+                        # Forward pass
+                        prediction = model(x, training = True)
 
                     # Obtain tensor value from shape=(1, 4) to shape(4,)
                     prediction = prediction[0]
@@ -64,10 +89,6 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
 
                 # Update training metric
                 training_metrics.update_state(y, prediction)
-
-            print(str(datetime.now()))
-            print("Training loss at step %d: %f" % (step, float(loss_value.numpy())))
-            print("Training categorical accuracy at step %d: %f" % (step, float(training_metrics.result())))
 
             # Log every 100 iterations
             if step % 100 == 0 and step != 0:
@@ -90,7 +111,7 @@ def train_model(model, log_file, model_directory, type_of_model = 1):
         # Show training time for every epoch
         write_log("Time taken: %.2fs" % (time.time() - start_time), log_file)
 
-# Test model
+# Test Two-Stream Convolutional Network model
 def test_two_stream_net(log_file, spatial_model_directory, temporal_model_directory, spatial_output, temporal_output, two_stream_output):
 
     # Set number of testing iterations
@@ -183,3 +204,61 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
         conv_net_cat_acc.reset_state()
         spatial_net_cat_acc.reset_state()
         temporal_net_cat_acc.reset_state()
+
+# Test model
+def test_sequence(log_file, model_directory, output, num_iterations = 500,  tensor_num_splits=3, tensor_axis_split=4):
+
+    # Set lenght of frames per sequence to test
+    len_sequence = 15
+
+    # Load model
+    model = models.load_model(model_directory, compile=False)
+
+    # Log starting time of testing process
+    write_log(message = "Start of testing at %s" % (str(datetime.now())), file_name = log_file)
+
+    # Iterate testing process
+    for iteration in range(num_iterations):
+
+        # Print iteration phase
+        write_log(
+            "Start of iteration %d of testing"
+            % (iteration), log_file
+        )
+
+        # Get testing batches
+        x_batch_test, y_batch_test = get_frames_sequence(len_sequence=len_sequence, training=False)
+
+        # Define Categorical Accuracy Metrics
+        cat_acc = metrics.CategoricalAccuracy()
+
+        # Iterate mini-batches
+        for mini_batch in range(len(x_batch_test)):
+
+            # Set mini-batch list values (len = len_sequence = 15)
+            x_mini_batch_test = x_batch_test[mini_batch]
+            y_mini_batch_test = y_batch_test[mini_batch]
+
+            # Initialize model output list
+            output_list = []
+
+            # Split tensor to adjust to model input
+            tensor_array = tf.split(x_mini_batch_test, num_or_size_splits=tensor_num_splits, axis=tensor_axis_split)
+
+            # Iterate tensor array and feed it to the model
+            for tensor in tensor_array:
+
+                # Append output value to mini_batch list
+                output_list.append(model(tensor, training = False)[0])
+
+            # Average output list values
+            mean_prediction = get_mean_output(output_list)
+
+            # Calculate metrics
+            cat_acc.update_state(mean_prediction, y_mini_batch_test)
+
+        # Log output predictions in corresponding files
+        write_log(message = str(cat_acc.result().numpy()), file_name = output)
+
+        # Reset states in between iterations: They are averaged after all the testing
+        cat_acc.reset_state()
