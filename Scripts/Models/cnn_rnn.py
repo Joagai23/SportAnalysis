@@ -9,13 +9,13 @@ def create_cnn_rnn_model(num_classes, max_sequence_lenght = 5, num_features = 20
     mask_input = Input((max_sequence_lenght,), dtype="bool")
 
     # GRU Block
-    x = layers.GRU(16, return_sequences=True)(frame_features_input, mask=mask_input)
-    x = layers.GRU(8)(x)
+    gru1 = layers.GRU(16, return_sequences=True)(frame_features_input, mask=mask_input)
+    gru2 = layers.GRU(8)(gru1)
 
     # Output Block
-    x = layers.Dropout(0.4)(x)
-    x = layers.Dense(8, activation="relu")(x)
-    output = layers.Dense(num_classes, activation="softmax")(x)
+    dropout = layers.Dropout(0.4)(gru2)
+    dense = layers.Dense(8, activation="relu")(dropout)
+    output = layers.Dense(num_classes, activation="softmax")(dense)
 
     # Create and return model
     rnn_model = Model([frame_features_input, mask_input], output)

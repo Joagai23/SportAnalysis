@@ -8,6 +8,7 @@ import re
 import tensorflow as tf
 from collections import Counter
 from keras import utils
+from scipy import ndimage
 
 # Import dense script
 from .dense_optical_flow import dense_sequence
@@ -25,16 +26,19 @@ temporal_model_log = "./Text_Files/two-stream_conv_net/temporal_model/temporal_m
 spatial_model_log = "./Text_Files/two-stream_conv_net/spatial_model/spatial_model.txt"
 two_stream_conv_model_log = "./Text_Files/two-stream_conv_net/two_stream_conv_model.txt"
 cnn_rnn_model_log = "./Text_Files/cnn_rnn/cnn_rnn.txt"
+cnn_3d_model_log = "./Text_Files/cnn_3d/cnn_3d.txt"
 
 temporal_model_output = "./Text_Files/two-stream_conv_net/temporal_model/temporal_model_output.txt" 
 spatial_model_output = "./Text_Files/two-stream_conv_net/spatial_model/spatial_model_output.txt"
 two_stream_conv_model_output = "./Text_Files/two-stream_conv_net/two_stream_conv_model_output.txt"
 cnn_rnn_model_output = "./Text_Files/cnn_rnn/cnn_rnn_output.txt"
+cnn_3d_model_output = "./Text_Files/cnn_3d/cnn_3d_output.txt"
 
 # Define model directories
 temporal_model_directory = "./Models/temporal_model"
 spatial_model_directory = "./Models/spatial_model"
 cnn_rnn_model_directory = "./Models/cnn_rnn_model"
+cnn_3d_model_directory = "./Models/cnn_3d_model"
 
 # For every video create a dense optical flow
 def dense_flow():
@@ -283,6 +287,9 @@ def get_training_data(type_of_model = 1, len_sequence = 5):
     # LCRN model
     elif type_of_model == 3:
         return get_frames_sequence(len_sequence=len_sequence, training=True)
+    # 3D model
+    elif type_of_model == 4:
+         return get_frames_sequence(len_sequence=len_sequence, training=True, addition_axis=3)
 
     # Open and read training file
     training_file = open(training_file_directory, "r")
@@ -394,7 +401,7 @@ def get_test_frames_by_dense(len_sequence = 15):
     return spatial_x_batch_test, temporal_x_batch_test, y_batch_test
 
 # Get a sequence of training frames
-def get_frames_sequence(len_sequence = 5, training=True):
+def get_frames_sequence(len_sequence = 5, training=True, addition_axis = 0):
 
     # Open and read file
     if training:
@@ -434,7 +441,7 @@ def get_frames_sequence(len_sequence = 5, training=True):
         y_batch.append(label)
 
         # Get input
-        input = dense_path_to_image([frame_list], addition_axis=0)[0]
+        input = dense_path_to_image([frame_list], addition_axis=addition_axis)[0]
         x_batch.append(input)
 
     return x_batch, y_batch
@@ -508,3 +515,35 @@ def get_mean_accuracy(result_file_name):
 # Create batch mask for a given tensor
 def create_batch_mask(sequence_lenght):
     return np.ones(shape=(1, sequence_lenght,), dtype="bool")
+
+def normalize(volume):
+    """Normalize the volume"""
+    min = -1000
+    max = 400
+    volume[volume < min] = min
+    volume[volume > max] = max
+    volume = (volume - min) / (max - min)
+    volume = volume.astype("float32")
+    return volume
+
+# Resize image depth
+def resize_volume(image):
+
+    # Squeeze image
+    image = tf.squeeze(image)
+
+    # Set the desired depth
+    desired_depth = 16
+
+    # Get current depth
+    current_depth = image.shape[-1]
+
+    # Compute depth factor
+    depth = current_depth / desired_depth
+    depth_factor = 1 / depth
+
+    # Resize across z-axis
+    image = ndimage.zoom(image, (1, 1, depth_factor), order=1)
+
+    # Add another channel to the image and return
+    return tf.expand_dims(image, axis = 3)

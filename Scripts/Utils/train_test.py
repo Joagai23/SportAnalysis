@@ -4,7 +4,7 @@ import time
 from keras import optimizers, losses, metrics, models, applications, Input, Model
 from keras.applications.inception_v3 import preprocess_input
 from datetime import datetime
-from .helper import get_training_data, get_test_frames_by_dense, get_mean_output, get_frames_sequence, create_batch_mask
+from .helper import get_training_data, get_test_frames_by_dense, get_mean_output, get_frames_sequence, create_batch_mask, resize_volume
 from .log_writer import write_log
 
 # Define training variables
@@ -26,7 +26,7 @@ def build_feature_extractor(image_size = 224):
     outputs = feature_extractor(preprocessed)
     return Model(inputs, outputs, name="feature_extractor")
 
-# Train model function. Inputs = model, log_file, type_of_model (1 = spatial, 2 = temporal, 3 = sequence)
+# Train model function. Inputs = model, log_file, type_of_model (1 = spatial, 2 = temporal, 3 = cnn-rnn, 4 = 3d-cnn)
 def train_model(model, log_file, model_directory, type_of_model = 1, num_features = 2048, len_sequence = 5):
 
     # Instantiate loss function
@@ -66,11 +66,15 @@ def train_model(model, log_file, model_directory, type_of_model = 1, num_feature
                 # Record operations with Gradient Tape
                 with tf.GradientTape() as tape:
                     
+                    # Modify input if CNN-RNN
                     if type_of_model == 3:
                         x = feature_extractor(x)
                         x = x[None, :]
                         mask = create_batch_mask(len_sequence)
                         prediction = model((x, mask), training = True)
+                    # Modify input if 3D-CNN
+                    elif type_of_model == 4:
+                        prediction = model(x, training = True)
                     else:
                         # Forward pass
                         prediction = model(x, training = True)
@@ -89,6 +93,15 @@ def train_model(model, log_file, model_directory, type_of_model = 1, num_feature
 
                 # Update training metric
                 training_metrics.update_state(y, prediction)
+
+            print(
+                "Training loss at step %d: %f"
+                % (step, float(loss_value.numpy()))
+            )
+            print(
+                "Training categorical accuracy at step %d: %f"
+                % (step, float(training_metrics.result()))
+            )
 
             # Log every 100 iterations
             if step % 100 == 0 and step != 0:
@@ -206,13 +219,16 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
         temporal_net_cat_acc.reset_state()
 
 # Test model
-def test_sequence(log_file, model_directory, output, num_iterations = 500,  tensor_num_splits=3, tensor_axis_split=4):
+def test_cnn_rnn(log_file, model_directory, output, num_iterations = 500,  tensor_num_splits=3, tensor_axis_split=0):
 
     # Set lenght of frames per sequence to test
     len_sequence = 15
 
     # Load model
     model = models.load_model(model_directory, compile=False)
+
+    # Initialize CNN-RNN function
+    feature_extractor = build_feature_extractor()
 
     # Log starting time of testing process
     write_log(message = "Start of testing at %s" % (str(datetime.now())), file_name = log_file)
@@ -248,8 +264,13 @@ def test_sequence(log_file, model_directory, output, num_iterations = 500,  tens
             # Iterate tensor array and feed it to the model
             for tensor in tensor_array:
 
+                # Transform input
+                x = feature_extractor(tensor)
+                x = x[None, :]
+                mask = create_batch_mask(5)
+
                 # Append output value to mini_batch list
-                output_list.append(model(tensor, training = False)[0])
+                output_list.append(model((x, mask), training = False)[0])
 
             # Average output list values
             mean_prediction = get_mean_output(output_list)
