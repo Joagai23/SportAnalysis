@@ -1,5 +1,6 @@
 # Import libraries
 import tensorflow as tf
+import numpy as np
 import time
 from keras import optimizers, losses, metrics, models, applications, Input, Model
 from keras.applications.inception_v3 import preprocess_input
@@ -72,9 +73,6 @@ def train_model(model, log_file, model_directory, type_of_model = 1, num_feature
                         x = x[None, :]
                         mask = create_batch_mask(len_sequence)
                         prediction = model((x, mask), training = True)
-                    # Modify input if 3D-CNN
-                    elif type_of_model == 4:
-                        prediction = model(x, training = True)
                     else:
                         # Forward pass
                         prediction = model(x, training = True)
@@ -219,7 +217,7 @@ def test_two_stream_net(log_file, spatial_model_directory, temporal_model_direct
         temporal_net_cat_acc.reset_state()
 
 # Test model
-def test_cnn_rnn(log_file, model_directory, output, num_iterations = 500,  tensor_num_splits=3, tensor_axis_split=0):
+def test_cnn(log_file, model_directory, output, num_iterations = 500,  addition_axis= 0, tensor_num_splits=3, tensor_axis_split=0, type_of_model=3):
 
     # Set lenght of frames per sequence to test
     len_sequence = 15
@@ -243,7 +241,7 @@ def test_cnn_rnn(log_file, model_directory, output, num_iterations = 500,  tenso
         )
 
         # Get testing batches
-        x_batch_test, y_batch_test = get_frames_sequence(len_sequence=len_sequence, training=False)
+        x_batch_test, y_batch_test = get_frames_sequence(len_sequence=len_sequence, training=False, addition_axis=addition_axis)
 
         # Define Categorical Accuracy Metrics
         cat_acc = metrics.CategoricalAccuracy()
@@ -264,13 +262,20 @@ def test_cnn_rnn(log_file, model_directory, output, num_iterations = 500,  tenso
             # Iterate tensor array and feed it to the model
             for tensor in tensor_array:
 
-                # Transform input
-                x = feature_extractor(tensor)
-                x = x[None, :]
-                mask = create_batch_mask(5)
+                if type_of_model == 3:
 
-                # Append output value to mini_batch list
-                output_list.append(model((x, mask), training = False)[0])
+                    # Transform input
+                    x = feature_extractor(tensor)
+                    x = x[None, :]
+                    mask = create_batch_mask(5)
+
+                    # Append output value to mini_batch list
+                    output_list.append(model((x, mask), training = False)[0])
+
+                elif type_of_model == 4:
+
+                    # Append output value to mini_batch list
+                    output_list.append(model(tensor, training = False)[0])
 
             # Average output list values
             mean_prediction = get_mean_output(output_list)
@@ -283,3 +288,18 @@ def test_cnn_rnn(log_file, model_directory, output, num_iterations = 500,  tenso
 
         # Reset states in between iterations: They are averaged after all the testing
         cat_acc.reset_state()
+
+# Output demo directory predictions
+def demo_output(image_list, model_directory):
+
+    # Load best model
+    model = models.load_model(model_directory, compile=False)
+    i = 1
+    for image in image_list:
+        prediction = model(image, training = False)[0]
+        print(
+                "Prediction in frame %d: %d"
+                % (i, np.argmax(prediction))
+            )
+            
+        i+=1

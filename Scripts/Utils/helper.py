@@ -17,6 +17,7 @@ from .dense_optical_flow import dense_sequence
 video_directory = "../Videos"
 frame_directory = "./Frames"
 dense_directory = "./Dense"
+demo_directory = "./Demo"
 
 # Define files
 training_file_directory = "./Text_Files/training_directory_list.txt"
@@ -547,3 +548,12 @@ def resize_volume(image):
 
     # Add another channel to the image and return
     return tf.expand_dims(image, axis = 3)
+
+# Obtain list of demo images
+def get_demo_images():
+    
+  # Get demo files
+  demo_files = [demo_directory + "/" + f for f in os.listdir(demo_directory)]
+
+  # Get image list
+  return path_to_image(demo_files)
